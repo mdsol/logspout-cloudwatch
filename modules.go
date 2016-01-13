@@ -1,8 +1,7 @@
 package main
 
 import (
-	_ "github.com/looplab/logspout-logstash"
-	// _ "github.com/benton/logspout-cloudwatch"
+	_ "github.com/benton/logspout-cloudwatch"
 	_ "github.com/gliderlabs/logspout/adapters/cloudwatch"
 	_ "github.com/gliderlabs/logspout/adapters/raw"
 	_ "github.com/gliderlabs/logspout/adapters/syslog"
