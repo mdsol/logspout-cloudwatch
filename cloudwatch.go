@@ -21,10 +21,12 @@ func init() {
 // the LogGroup and LogStream for each message, then sends each message
 // on to a CloudwatchBatcher, which batches messages for upload to AWS.
 type CloudwatchAdapter struct {
-	route   *router.Route
-	client  *docker.Client
-	osHost  string
-	batcher *CloudwatchBatcher // batches up messages by log group and stream
+	route       *router.Route
+	client      *docker.Client
+	osHost      string
+	batcher     *CloudwatchBatcher // batches up messages by log group and stream
+	groupnames  map[string]string  // maps container names to log groups
+	streamnames map[string]string  // maps container names to log strams
 }
 
 // NewCloudwatchAdapter creates a CloudwatchAdapter for the current region.
@@ -42,10 +44,12 @@ func NewCloudwatchAdapter(route *router.Route) (router.LogAdapter, error) {
 		return nil, err
 	}
 	return &CloudwatchAdapter{
-		route:   route,
-		client:  client,
-		osHost:  hostname,
-		batcher: NewCloudwatchBatcher(route),
+		route:       route,
+		client:      client,
+		osHost:      hostname,
+		batcher:     NewCloudwatchBatcher(route),
+		groupnames:  map[string]string{},
+		streamnames: map[string]string{},
 	}, nil
 }
 
@@ -53,33 +57,40 @@ func NewCloudwatchAdapter(route *router.Route) (router.LogAdapter, error) {
 func (a *CloudwatchAdapter) Stream(logstream chan *router.Message) {
 	for m := range logstream {
 		// determine the log group name and log stream name
-
-		// make a render context with the required info
-		containerData, err := a.client.InspectContainer(m.Container.ID)
-		if err != nil {
-			log.Println("cloudwatch - error inspecting container:", err)
-			continue
+		var groupName, streamName string
+		// first, check the in-memory cache so this work is done per-container
+		if cachedGroup, isCached := a.groupnames[m.Container.Name]; isCached {
+			groupName = cachedGroup
 		}
-		context := RenderContext{
-			Env:        parseEnv(m.Container.Config.Env),
-			Labels:     containerData.Config.Labels,
-			Name:       strings.TrimPrefix(m.Container.Name, `/`),
-			ID:         m.Container.ID,
-			Host:       m.Container.Config.Hostname,
-			LoggerHost: a.osHost,
+		if cachedStream, isCached := a.streamnames[m.Container.Name]; isCached {
+			streamName = cachedStream
 		}
-
-		groupName := a.renderEnvValue(`LOG_GROUP`, &context, a.osHost)
-		streamName := a.renderEnvValue(`LOG_STREAM`, &context, context.Name)
-		// TODO - cache these two values, and index them by container ID
-		// so that all the above logic happens per container, not per message!
-
+		if (streamName == "") || (groupName == "") {
+			// make a render context with the required info
+			containerData, err := a.client.InspectContainer(m.Container.ID)
+			if err != nil {
+				log.Println("cloudwatch - error inspecting container:", err)
+				continue
+			}
+			context := RenderContext{
+				Env:        parseEnv(m.Container.Config.Env),
+				Labels:     containerData.Config.Labels,
+				Name:       strings.TrimPrefix(m.Container.Name, `/`),
+				ID:         m.Container.ID,
+				Host:       m.Container.Config.Hostname,
+				LoggerHost: a.osHost,
+			}
+			groupName = a.renderEnvValue(`LOG_GROUP`, &context, a.osHost)
+			streamName = a.renderEnvValue(`LOG_STREAM`, &context, context.Name)
+			a.groupnames[m.Container.Name] = groupName   // cache the group name
+			a.streamnames[m.Container.Name] = streamName // and the stream name
+		}
 		a.batcher.Input <- CloudwatchMessage{
 			Message:   m.Data,
 			Group:     groupName,
 			Stream:    streamName,
 			Time:      time.Now(),
-			Container: context.Name,
+			Container: strings.TrimPrefix(m.Container.Name, `/`),
 		}
 	}
 }
