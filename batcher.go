@@ -12,8 +12,8 @@ import (
 const DEFAULT_DELAY = 4 //seconds
 
 // CloudwatchBatcher receieves Cloudwatch messages on its input channel,
-// stores them in Slices until enough data is ready to send, then sends each
-// CloudwatchMessageBatch on its output channel.
+// stores them in CloudwatchBatches until enough data is ready to send, then
+// sends each CloudwatchMessageBatch on its output channel.
 type CloudwatchBatcher struct {
 	Input  chan CloudwatchMessage
 	output chan CloudwatchBatch
@@ -23,14 +23,14 @@ type CloudwatchBatcher struct {
 	batches map[string]*CloudwatchBatch
 }
 
-// constructor for CloudwatchBatcher - requires the Logspout Route
-func NewCloudwatchBatcher(route *router.Route) *CloudwatchBatcher {
+// constructor for CloudwatchBatcher - requires the adapter
+func NewCloudwatchBatcher(adapter *CloudwatchAdapter) *CloudwatchBatcher {
 	batcher := CloudwatchBatcher{
 		Input:   make(chan CloudwatchMessage),
-		output:  NewCloudwatchUploader(route).Input,
+		output:  NewCloudwatchUploader(adapter).Input,
 		batches: map[string]*CloudwatchBatch{},
 		timer:   make(chan bool),
-		route:   route,
+		route:   adapter.Route,
 	}
 	go batcher.Start()
 	return &batcher

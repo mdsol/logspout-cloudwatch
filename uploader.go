@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
-	"github.com/gliderlabs/logspout/router"
 )
 
 // CloudwatchUploader receieves CloudwatchBatches on its input channel,
@@ -22,20 +21,30 @@ type CloudwatchUploader struct {
 	debugSet bool
 }
 
-func NewCloudwatchUploader(route *router.Route) *CloudwatchUploader {
+func NewCloudwatchUploader(adapter *CloudwatchAdapter) *CloudwatchUploader {
+	region := adapter.Route.Address
+	log.Println("New uploader starting with region", region)
+	if (region == "auto") || (region == "") {
+		if adapter.Ec2Region == "" {
+			log.Println("cloudwatch: ERROR - could not get region from EC2")
+		} else {
+			region = adapter.Ec2Region
+			log.Println("cloudwatch: using native EC2 region", region)
+		}
+	}
 	debugSet := false
-	_, debugOption := route.Options[`DEBUG`]
+	_, debugOption := adapter.Route.Options[`DEBUG`]
 	if debugOption || (os.Getenv(`DEBUG`) != "") {
 		debugSet = true
-		log.Println("cloudwatch: Creating AWS Cloudwatch client for zone",
-			route.Address)
+		log.Println("cloudwatch: Creating AWS Cloudwatch client for region",
+			region)
 	}
 	uploader := CloudwatchUploader{
 		Input:    make(chan CloudwatchBatch),
 		tokens:   map[string]string{},
 		debugSet: debugSet,
 		svc: cloudwatchlogs.New(session.New(),
-			&aws.Config{Region: aws.String(route.Address)}),
+			&aws.Config{Region: aws.String(region)}),
 	}
 	go uploader.Start()
 	return &uploader
