@@ -28,7 +28,6 @@ func NewCloudwatchUploader(adapter *CloudwatchAdapter) *CloudwatchUploader {
 			log.Println("cloudwatch: ERROR - could not get region from EC2")
 		} else {
 			region = adapter.Ec2Region
-			log.Println("cloudwatch: using native EC2 region", region)
 		}
 	}
 	debugSet := false
