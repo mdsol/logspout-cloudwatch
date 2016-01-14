@@ -23,7 +23,6 @@ type CloudwatchUploader struct {
 
 func NewCloudwatchUploader(adapter *CloudwatchAdapter) *CloudwatchUploader {
 	region := adapter.Route.Address
-	log.Println("New uploader starting with region", region)
 	if (region == "auto") || (region == "") {
 		if adapter.Ec2Region == "" {
 			log.Println("cloudwatch: ERROR - could not get region from EC2")
