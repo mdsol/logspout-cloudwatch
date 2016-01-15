@@ -20,7 +20,8 @@ type RenderContext struct {
 	Region     string            // EC2 region
 }
 
-func (r *RenderContext) Label(key string) (string, error) {
+// renders a label value based on a given key
+func (r *RenderContext) Lbl(key string) (string, error) {
 	if val, exists := r.Labels[key]; exists {
 		return val, nil
 	}
