@@ -67,10 +67,10 @@ func (a *CloudwatchAdapter) Stream(logstream chan *router.Message) {
 		// determine the log group name and log stream name
 		var groupName, streamName string
 		// first, check the in-memory cache so this work is done per-container
-		if cachedGroup, isCached := a.groupnames[m.Container.Name]; isCached {
+		if cachedGroup, isCached := a.groupnames[m.Container.ID]; isCached {
 			groupName = cachedGroup
 		}
-		if cachedStream, isCached := a.streamnames[m.Container.Name]; isCached {
+		if cachedStream, isCached := a.streamnames[m.Container.ID]; isCached {
 			streamName = cachedStream
 		}
 		if (streamName == "") || (groupName == "") {
@@ -92,15 +92,15 @@ func (a *CloudwatchAdapter) Stream(logstream chan *router.Message) {
 			}
 			groupName = a.renderEnvValue(`LOGSPOUT_GROUP`, &context, a.OsHost)
 			streamName = a.renderEnvValue(`LOGSPOUT_STREAM`, &context, context.Name)
-			a.groupnames[m.Container.Name] = groupName   // cache the group name
-			a.streamnames[m.Container.Name] = streamName // and the stream name
+			a.groupnames[m.Container.ID] = groupName   // cache the group name
+			a.streamnames[m.Container.ID] = streamName // and the stream name
 		}
 		a.batcher.Input <- CloudwatchMessage{
 			Message:   m.Data,
 			Group:     groupName,
 			Stream:    streamName,
 			Time:      time.Now(),
-			Container: strings.TrimPrefix(m.Container.Name, `/`),
+			Container: m.Container.ID,
 		}
 	}
 }
