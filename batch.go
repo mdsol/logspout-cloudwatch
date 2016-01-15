@@ -17,6 +17,7 @@ type CloudwatchBatch struct {
 }
 
 // Rules for creating Cloudwatch Log batches, from https://goo.gl/TrIN8c
+const MAX_BATCH_COUNT = 10000  // messages
 const MAX_BATCH_SIZE = 1048576 // bytes
 const MSG_OVERHEAD = 26        // bytes
 

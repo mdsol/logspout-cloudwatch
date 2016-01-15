@@ -2,6 +2,7 @@ package cloudwatch
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -17,6 +18,13 @@ type RenderContext struct {
 	LoggerHost string            // hostname of logging container (os.Hostname)
 	InstanceID string            // EC2 Instance ID
 	Region     string            // EC2 region
+}
+
+func (r *RenderContext) Label(key string) (string, error) {
+	if val, exists := r.Labels[key]; exists {
+		return val, nil
+	}
+	return "", fmt.Errorf("ERROR reading container label %s", key)
 }
 
 // HELPER FUNCTIONS
@@ -48,8 +56,8 @@ func (a *CloudwatchAdapter) renderEnvValue(
 			log.Printf("cloudwatch: error rendering template %s : %s\n",
 				finalVal, err)
 			return defaultVal
-			finalVal = renderedValue.String()
 		}
+		finalVal = renderedValue.String()
 	}
 	return finalVal
 }

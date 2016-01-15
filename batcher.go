@@ -43,12 +43,16 @@ func (b *CloudwatchBatcher) Start() {
 	for { // run forever, and...
 		select { // either batch up a message, or respond to the timer
 		case msg := <-b.Input: // a message - put it into its slice
+			if len(msg.Message) == 0 { // empty messages are not allowed
+				break
+			}
 			// get or create the correct slice of messages for this message
 			if _, exists := b.batches[msg.Container]; !exists {
 				b.batches[msg.Container] = NewCloudwatchBatch()
 			}
 			// if Msg is too long for the current batch, submit the batch
-			if (b.batches[msg.Container].Size + msgSize(msg)) > MAX_BATCH_SIZE {
+			if (b.batches[msg.Container].Size+msgSize(msg)) > MAX_BATCH_SIZE ||
+				len(b.batches[msg.Container].Msgs) >= MAX_BATCH_COUNT {
 				b.output <- *b.batches[msg.Container]
 				b.batches[msg.Container] = NewCloudwatchBatch()
 			}

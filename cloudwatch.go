@@ -90,8 +90,8 @@ func (a *CloudwatchAdapter) Stream(logstream chan *router.Message) {
 				InstanceID: a.Ec2Instance,
 				Region:     a.Ec2Region,
 			}
-			groupName = a.renderEnvValue(`LOG_GROUP`, &context, a.OsHost)
-			streamName = a.renderEnvValue(`LOG_STREAM`, &context, context.Name)
+			groupName = a.renderEnvValue(`LOGSPOUT_GROUP`, &context, a.OsHost)
+			streamName = a.renderEnvValue(`LOGSPOUT_STREAM`, &context, context.Name)
 			a.groupnames[m.Container.Name] = groupName   // cache the group name
 			a.streamnames[m.Container.Name] = streamName // and the stream name
 		}
