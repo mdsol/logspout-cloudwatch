@@ -76,7 +76,7 @@ Production Usage / Inside EC2
           --volume=/var/run/docker.sock:/tmp/docker.sock \
           mdsol/logspout 'cloudwatch://auto'
 
-    The `-d` and `-t` flags are optional, depending on whether you want to background the process, or run it under some sepervisory daemon. But if you *do* omit the `-t` flag, you can use the environment variable `LOGSPOUT=ignore` to prevent Logspout from attempting to post its own output to AWS.
+    The `-d` and `-t` flags are optional, depending on whether you want to background the process, or run it under some supervisory daemon. But if you *do* omit the `-t` flag, you can use the environment variable `LOGSPOUT=ignore` to prevent Logspout from attempting to post its own output to AWS.
 
 
 ----------------
@@ -115,17 +115,26 @@ So you may use the `{{}}` template-syntax to build complex Log Group and Log Str
 
     # If the labels contain the period (.) character, you can do this:
     LOGSPOUT_GROUP={{.Lbl "com.mycompany.loggroup"}}
+    LOGSPOUT_STREAM={{.Lbl "com.mycompany.logstream"}}
 
 Complex settings like this are most easily applied to contaners by putting them into a separate "environment file", and passing its path to docker at runtime: `docker run --env-file /path/to/file [...]`
 
 
 ----------------
-Further configuration
+Further Configuration
 ----------------
 
 * Adding the route option `NOEC2`, as in `cloudwatch://[region]?NOEC2` causes the adapter to skip its usual check for the EC2 Metadata service, for faster startup time when running outside EC2.
 
 * Adding the route option `DELAY=8`, as in `cloudwatch://[region]?DELAY=8` causes the adapter to push all logs to AWS every 8 seconds instead of the default of 4 seconds. If you run this adapter at scale, you may need to tune this value to avoid overloading your requset rate limit on the Cloudwatch Logs API.
+
+
+----------------
+Contribution / Development
+----------------
+This software was created by Benton Roberts _(broberts@mdsol.com)_
+
+By default, the Docker image builds from the Go source on GitHub, not from local disk, as per the instructions for [Logspout custom builds][7].
 
 
 
@@ -135,4 +144,4 @@ Further configuration
 [4]: https://docs.docker.com/engine/userguide/labels-custom-metadata/
 [5]: https://console.aws.amazon.com/cloudwatch/home?#logs
 [6]: https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html
-
+[7]: https://github.com/gliderlabs/logspout/tree/master/custom
