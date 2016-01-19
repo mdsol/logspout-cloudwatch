@@ -5,46 +5,123 @@ A logspout adapter that pushes logs to the AWS Cloudwatch Logs service.
 ----------------
 Overview
 ----------------
-This software is a plugin for [logspout][1], which is an application that reads the Docker logs from all containers not allocated with a tty (that is, *not* run with the `-t` option). This plugin sends the log messages on to Amazon's [Cloudwatch Logs][2] web service.
+This software is a plugin for [logspout][1], which is a container-based application that collects Docker logs from the *other* containers run on a given Docker host. This plugin then sends those log messages on to Amazon's [Cloudwatch Logs][2] web service.
 
 
 ----------------
-Features:
+Features
 ----------------
 
-* Logspout is run as a Docker container alongside the logged containers. No setup is required within the logged containers.
+* Runs as a single Docker container with access to the docker socket file -- no setup is required within the logged containers. Auto-detects Region when run in EC2, and uses IAM Role credentials when available.
 
-* Cloudwatch defines unique Log Streams, and requires that each be assigned to a Log Group. By default, container logs are named after their container name, and grouped by host.
+* By default, names each Cloudwatch Log Stream after its container name, and groups the streams by host name. But also...
 
-* Provides flexible, dynamic control of stream and group names, based on [templates][3]. Assign names based on a container's [labels][4] or environment variables. Set host-wide defaults with per-container overrides.
+* Provides flexible, dynamic control of stream and group names, based on [templates][3]. Can assign names based on container [labels][4] or environment variables. Defines host-wide defaults while allowing per-container overrides.
 
-* Batches messages by stream, but periodically flushes all batches up to AWS, on a configurable timeout.
+* Batches messages by stream, but periodically flushes all batches to AWS, based on a configurable timeout.
 
 
 ----------------
 Installation
 ----------------
-The software runs in a container, so just `docker pull mdsol/logspout`.
+The software runs in a container, so just run `docker pull mdsol/logspout`.
+
 
 ----------------
-Usage
+Workstation Usage / Outside EC2
 ----------------
 
-1. First, make sure you're not running any containers that might be logging sensitive information -- that is, logs that you *don't* want showing up in your [Cloudwatch Logs console][5]. Use `docker ps -a` to check.
+1. First, make sure you're not running any containers that might be logging sensitive information -- that is, logs that you *don't* want showing up in your [Cloudwatch console][5]. Use `docker ps -a` to check.
 
-2. Run a container that just spits out the date every few seconds:
+2. To test the plugin, run a container that just prints out the date every few seconds:
 
-    docker run -h $(hostname -f) --name=echo3 -d --entrypoint=bash ubuntu \
-      -c 'while true; do echo "Hi, the date is $(date)" ; sleep 3 ; done'
+        docker run --name=echo3 -d ubuntu bash -c \
+          'while true; do echo "Hi, the date is $(date)" ; sleep 3 ; done'
 
-3.
+    Notice that the container is run _without_ the `-t` option. Logspout will not process output from containers with a TTY attached.
+
+3. Now run the logspout container with a route URL of `cloudwatch://us-east-1?DEBUG=1` (substitute your desired AWS region). The plugin needs AWS credentials to push data to the service, so if your credentials are set up in the [usual way][6] (at `~/.aws/credentials`), you can run:
+
+        docker run -h $(hostname) -v ~/.aws/credentials:/root/.aws/credentials \
+          --volume=/var/run/docker.sock:/tmp/docker.sock --name=logspout \
+          --rm -it mdsol/logspout 'cloudwatch://us-east-1?DEBUG=1'
+
+
+    Notice the `-h $(hostname -f)` parameter; you probably want the logging container name to share hostnames with the Docker host, because the default behavior is to group logs by hostname. The `DEBUG=1` route option allows you to make sure each batch of logs gets submitted to AWS without errors.
+
+4. Navigate to the [Cloudwatch console][5], click on `Logs`, then look for a Log Group named after your workstation's hostname. You should see a Log Stream within it named `echo3`, which should be receiving your container's output messages every four seconds.
+
 
 ----------------
-Usage
+Production Usage / Inside EC2
 ----------------
+
+1. Logspout needs the following policy permissions to create and write log streams and groups. Make sure your EC2 instance has a Role that includes the following:
+
+        "Statement": [{
+          "Action": [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:DescribeLogGroups",
+            "logs:DescribeLogStreams",
+            "logs:PutLogEvents"
+          ],
+          "Effect": "Allow",
+          "Resource": "*"
+        }]
+
+2. Now run the logspout container with a route URL of `cloudwatch://auto`. The AWS Region and the IAM Role credentials will be read from the EC2 Metadata Service.
+
+        docker run -h $(hostname) -dt --name=logspout \
+          --volume=/var/run/docker.sock:/tmp/docker.sock \
+          mdsol/logspout 'cloudwatch://auto'
+
+    The `-d` and `-t` flags are optional, depending on whether you want to background the process, or run it under some sepervisory daemon. But if you *do* omit the `-t` flag, you can use the environment variable `LOGSPOUT=ignore` to prevent Logspout from attempting to post its own output to AWS.
+
+
+----------------
+Customizing the Group and Stream Names
+----------------
+
+The first time a message is received from a given container, its Log Group and Log Stream names are computed. When planning how to group your logs, make sure the combination of these two will be unique, because if more than one contiainer tries to write to a given stream simultaneously, errors will occur.
+
+By default, each Log Stream is named after its associated container, and each stream's Log Group is the hostname of the container running Logspout. These two values can be overridden by setting the Environment variables `LOGSPOUT_GROUP` and `LOGSPOUT_STREAM` on the Logspout container, or on any individual log-producing container (container-specific values take precendence). In this way, precomputed values can be set for each container.
+
+Furthermore, when the Log Group and Log Stream names are computed, these Envinronment-based values are passed through Go's standard [template engine][3], and provided with the following render context:
+
+
+    type RenderContext struct {
+      Host       string            // container host name
+      Env        map[string]string // container ENV
+      Labels     map[string]string // container Labels
+      Name       string            // container Name
+      ID         string            // container ID
+      LoggerHost string            // hostname of logging container (os.Hostname)
+      InstanceID string            // EC2 Instance ID
+      Region     string            // EC2 region
+    }
+
+So you may use the `{{}}` template-syntax to build complex Log Group and Log Stream names from container Labels, or from other Env vars. Here are some examples:
+
+    # Prefix the default stream name with the EC2 Instance ID:
+    LOGSPOUT_STREAM={{.InstanceID}}-{{.Name}}
+
+    # Group streams by application and workflow stage (dev, prod, etc.),
+    # where these values are set as container environment vars:
+    LOGSPOUT_GROUP={{.Env.APP_NAME}}-{{.Env.STAGE_NAME}}
+
+    # Or use container Labels to do the same thing:
+    LOGSPOUT_GROUP={{.Labels.APP_NAME}}-{{.Labels.STAGE_NAME}}
+
+    # If the labels contain the period (.) character, you can do this:
+    LOGSPOUT_GROUP={{.Lbl "com.mycompany.loggroup"}}
+
+
 
 [1]: https://github.com/gliderlabs/logspout
 [2]: https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/Welcome.html
 [3]: https://golang.org/pkg/text/template/
 [4]: https://docs.docker.com/engine/userguide/labels-custom-metadata/
 [5]: https://console.aws.amazon.com/cloudwatch/home?#logs
+[6]: https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html
+
