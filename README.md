@@ -31,25 +31,25 @@ The software runs in a container, so just run `docker pull mdsol/logspout`.
 Workstation Usage / Outside EC2
 ----------------
 
-1. First, make sure you're not running any containers that might be logging sensitive information -- that is, logs that you *don't* want showing up in your [Cloudwatch console][5]. Use `docker ps -a` to check.
+First, make sure you're not running any containers that might be logging sensitive information -- that is, logs that you *don't* want showing up in your [Cloudwatch console][5].
 
-2. To test the plugin, run a container that just prints out the date every few seconds:
+1. To test the plugin, run a container that just prints out the date every few seconds:
 
         docker run --name=echo3 -d ubuntu bash -c \
           'while true; do echo "Hi, the date is $(date)" ; sleep 3 ; done'
 
     Notice that the container is run _without_ the `-t` option. Logspout will not process output from containers with a TTY attached.
 
-3. Now run the logspout container with a route URL of `cloudwatch://us-east-1?DEBUG=1` (substitute your desired AWS region). The plugin needs AWS credentials to push data to the service, so if your credentials are set up in the [usual way][6] (at `~/.aws/credentials`), you can run:
+2. Now run the logspout container with a route URL of `cloudwatch://us-east-1?DEBUG=1` (substitute your desired AWS region). The plugin needs AWS credentials to push data to the service, so if your credentials are set up in the [usual way][6] (at `~/.aws/credentials`), you can run:
 
         docker run -h $(hostname) -v ~/.aws/credentials:/root/.aws/credentials \
           --volume=/var/run/docker.sock:/tmp/docker.sock --name=logspout \
-          --rm -it mdsol/logspout 'cloudwatch://us-east-1?DEBUG=1'
+          --rm -it mdsol/logspout 'cloudwatch://us-east-1?DEBUG=1&NOEC2'
 
 
-    Notice the `-h $(hostname -f)` parameter; you probably want the logging container name to share hostnames with the Docker host, because the default behavior is to group logs by hostname. The `DEBUG=1` route option allows you to make sure each batch of logs gets submitted to AWS without errors.
+    Notice the `-h $(hostname -f)` parameter; you probably want the logging container name to share hostnames with the Docker host, because the default behavior is to group logs by hostname. The `DEBUG=1` route option allows you to make sure each batch of logs gets submitted to AWS without errors. The `NOEC2` option tells the plugin not to look for the EC2 Metadata service.
 
-4. Navigate to the [Cloudwatch console][5], click on `Logs`, then look for a Log Group named after your workstation's hostname. You should see a Log Stream within it named `echo3`, which should be receiving your container's output messages every four seconds.
+3. Navigate to the [Cloudwatch console][5], click on `Logs`, then look for a Log Group named after your workstation's hostname. You should see a Log Stream within it named `echo3`, which should be receiving your container's output messages every four seconds.
 
 
 ----------------
@@ -83,7 +83,7 @@ Production Usage / Inside EC2
 Customizing the Group and Stream Names
 ----------------
 
-The first time a message is received from a given container, its Log Group and Log Stream names are computed. When planning how to group your logs, make sure the combination of these two will be unique, because if more than one contiainer tries to write to a given stream simultaneously, errors will occur.
+The first time a message is received from a given container, its Log Group and Log Stream names are computed. When planning how to group your logs, make sure the combination of these two will be unique, because if more than one container tries to write to a given stream simultaneously, errors will occur.
 
 By default, each Log Stream is named after its associated container, and each stream's Log Group is the hostname of the container running Logspout. These two values can be overridden by setting the Environment variables `LOGSPOUT_GROUP` and `LOGSPOUT_STREAM` on the Logspout container, or on any individual log-producing container (container-specific values take precendence). In this way, precomputed values can be set for each container.
 
@@ -115,6 +115,17 @@ So you may use the `{{}}` template-syntax to build complex Log Group and Log Str
 
     # If the labels contain the period (.) character, you can do this:
     LOGSPOUT_GROUP={{.Lbl "com.mycompany.loggroup"}}
+
+Complex settings like this are most easily applied to contaners by putting them into a separate "environment file", and passing its path to docker at runtime: `docker run --env-file /path/to/file [...]`
+
+
+----------------
+Further configuration
+----------------
+
+* Adding the route option `NOEC2`, as in `cloudwatch://[region]?NOEC2` causes the adapter to skip its usual check for the EC2 Metadata service, for faster startup time when running outside EC2.
+
+* Adding the route option `DELAY=8`, as in `cloudwatch://[region]?DELAY=8` causes the adapter to push all logs to AWS every 8 seconds instead of the default of 4 seconds. If you run this adapter at scale, you may need to tune this value to avoid overloading your requset rate limit on the Cloudwatch Logs API.
 
 
 
