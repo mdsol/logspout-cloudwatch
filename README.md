@@ -126,7 +126,7 @@ Further Configuration
 
 * Adding the route option `NOEC2`, as in `cloudwatch://[region]?NOEC2` causes the adapter to skip its usual check for the EC2 Metadata service, for faster startup time when running outside EC2.
 
-* Adding the route option `DELAY=8`, as in `cloudwatch://[region]?DELAY=8` causes the adapter to push all logs to AWS every 8 seconds instead of the default of 4 seconds. If you run this adapter at scale, you may need to tune this value to avoid overloading your requset rate limit on the Cloudwatch Logs API.
+* Adding the route option `DELAY=8`, as in `cloudwatch://[region]?DELAY=8` causes the adapter to push all logs to AWS every 8 seconds instead of the default of 4 seconds. If you run this adapter at scale, you may need to tune this value to avoid overloading your request rate limit on the Cloudwatch Logs API.
 
 
 ----------------
