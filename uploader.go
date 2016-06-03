@@ -149,21 +149,18 @@ func (u *CloudwatchUploader) getSequenceToken(msg CloudwatchMessage) (*string,
 
 func (u *CloudwatchUploader) groupExists(group string) (bool, error) {
 	u.log("Checking for group: %s...", group)
-	params := &cloudwatchlogs.DescribeLogGroupsInput{
+	resp, err := u.svc.DescribeLogGroups(&cloudwatchlogs.DescribeLogGroupsInput{
 		LogGroupNamePrefix: aws.String(group),
-	}
-	resp, err := u.svc.DescribeLogGroups(params)
+	})
 	if err != nil {
 		return false, err
 	}
-	if count := len(resp.LogGroups); count > 1 { // too many matching streams!
-		return false, errors.New(fmt.Sprintf(
-			"%d groups match group %s!", count, group))
+	for _, matchedGroup := range resp.LogGroups {
+		if *matchedGroup.LogGroupName == group {
+			return true, nil
+		}
 	}
-	if count := len(resp.LogGroups); count < 1 { // no matching streams
-		return false, nil
-	}
-	return true, nil
+	return false, nil
 }
 
 func (u *CloudwatchUploader) createGroup(group string) error {
