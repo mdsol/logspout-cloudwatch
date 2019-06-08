@@ -26,6 +26,10 @@ Installation
 ----------------
 The software runs in a container, so just run `docker pull mdsol/logspout`.
 
+----------------
+Building
+----------------
+To build, run `./make.sh` in the root of the repository.
 
 ----------------
 Workstation Usage / Outside EC2
