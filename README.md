@@ -24,7 +24,7 @@ Features
 ----------------
 Installation
 ----------------
-The software runs in a container, so just run `docker pull mdsol/logspout`.
+The software runs in a container, so just run `docker pull porterdarby/logspout-cloudwatch`. This container is updated whenever the `gliderlabs/logspout` image is updated automatically using Docker Hub's automated build system.
 
 ----------------
 Building
