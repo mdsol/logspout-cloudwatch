@@ -52,6 +52,11 @@ func NewCloudwatchUploader(adapter *CloudwatchAdapter) *CloudwatchUploader {
 // while keeping track of the unique sequence token for each log stream.
 func (u *CloudwatchUploader) Start() {
 	for batch := range u.Input {
+		msgLen := len(batch.Msgs)
+		if msgLen == 0 {
+			u.log("The batch input does not have any messaged")
+			continue
+		}
 		msg := batch.Msgs[0]
 		u.log("Submitting batch for %s-%s (length %d, size %v)",
 			msg.Group, msg.Stream, len(batch.Msgs), batch.Size)
