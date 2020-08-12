@@ -54,7 +54,7 @@ func (u *CloudwatchUploader) Start() {
 	for batch := range u.Input {
 		msgLen := len(batch.Msgs)
 		if msgLen == 0 {
-			u.log("The batch input does not have any messaged")
+			u.log("The batch input does not have any messages")
 			continue
 		}
 		msg := batch.Msgs[0]
