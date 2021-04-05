@@ -1,0 +1,29 @@
+---
+apiVersion: backstage.io/v1alpha1 # This is a constant, just leave it
+kind: Component
+spec:
+  type: other # web_backend == only API, web_frontend == only UI, web_fullstack == both, mobile == mobile app
+  lifecycle: production # values: experimental, production or deprecated.
+  owner: devtools@mdsol.com
+metadata:
+  json_schema: "https://github.com/mdsol/platform-standards/tree/master/schemas/v1alpha1.schema.json"
+  name: Logspout Cloudwatch
+  description: A logspout adapter that pushes logs to the AWS Cloudwatch Logs service.
+  aliases: [] # Other names for this service
+  security:
+    authentication: ["none"] # List all the authentication methods used in our service. See the json schema for options.
+    network_accessiblity: ["private"] # `private` == internal vpn only, `public` == directly accesible outside the vpn
+    data_types: [] # List the type of data used in your service.
+  teams:
+    - name: "Devtools"
+      number: 34
+      email: devtools@mdsol.com
+  people:
+    - role: "project manager"
+      email: mcatenacci@mdsol.com
+    - role: "engineer"
+      email: broberts@mdsol.com
+  channels: # List all the places were we can find you. Mainly slack channels
+    - url: https://mdsol.slack.com/messages/devtools-public-forum
+      automated_messaging: false
+      role: slack
