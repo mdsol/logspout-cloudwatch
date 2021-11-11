@@ -64,7 +64,8 @@ Production Usage / Inside EC2
             "logs:CreateLogStream",
             "logs:DescribeLogGroups",
             "logs:DescribeLogStreams",
-            "logs:PutLogEvents"
+            "logs:PutLogEvents",
+            "logs:PutRetentionPolicy"
           ],
           "Effect": "Allow",
           "Resource": "*"
@@ -87,7 +88,7 @@ The first time a message is received from a given container, its Log Group and L
 
 By default, each Log Stream is named after its associated container, and each stream's Log Group is the hostname of the container running Logspout. These two values can be overridden by setting the Environment variables `LOGSPOUT_GROUP` and `LOGSPOUT_STREAM` on the Logspout container, or on any individual log-producing container (container-specific values take precendence). In this way, precomputed values can be set for each container.
 
-Furthermore, when the Log Group and Log Stream names are computed, these Envinronment-based values are passed through Go's standard [template engine][3], and provided with the following render context:
+Furthermore, when the Log Group name, Log Stream name and log retention are computed, these Environment-based values are passed through Go's standard [template engine][3], and provided with the following render context:
 
 
     type RenderContext struct {
@@ -117,7 +118,13 @@ So you may use the `{{}}` template-syntax to build complex Log Group and Log Str
     LOGSPOUT_GROUP={{.Lbl "com.mycompany.loggroup"}}
     LOGSPOUT_STREAM={{.Lbl "com.mycompany.logstream"}}
 
-Complex settings like this are most easily applied to contaners by putting them into a separate "environment file", and passing its path to docker at runtime: `docker run --env-file /path/to/file [...]`
+    # Set the logs to only be retained for a period of time (defaults to retaining forever):
+    # Valid values are: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, and 3653.
+    # The retention policy will only be set when a log group is created, if a log group already exists its retention
+    # policy will not be updated.
+    LOGSPOUT_CLOUDWATCH_RETENTION_DAYS={{.Labels.LOG_RETENTION_DAYS}}
+
+Complex settings like this are most easily applied to containers by putting them into a separate "environment file", and passing its path to docker at runtime: `docker run --env-file /path/to/file [...]`
 
 
 ----------------

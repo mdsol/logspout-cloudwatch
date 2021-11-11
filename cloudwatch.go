@@ -3,6 +3,7 @@ package cloudwatch
 import (
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,10 +25,11 @@ type CloudwatchAdapter struct {
 	Ec2Region   string
 	Ec2Instance string
 
-	client      *docker.Client
-	batcher     *CloudwatchBatcher // batches up messages by log group and stream
-	groupnames  map[string]string  // maps container names to log groups
-	streamnames map[string]string  // maps container names to log streams
+	client        *docker.Client
+	batcher       *CloudwatchBatcher // batches up messages by log group and stream
+	groupnames    map[string]string  // maps container names to log groups
+	streamnames   map[string]string  // maps container names to log streams
+	retentiondays map[string]int64   // maps log groups to retention days
 }
 
 // NewCloudwatchAdapter creates a CloudwatchAdapter for the current region.
@@ -49,13 +51,14 @@ func NewCloudwatchAdapter(route *router.Route) (router.LogAdapter, error) {
 		return nil, err
 	}
 	adapter := CloudwatchAdapter{
-		Route:       route,
-		OsHost:      hostname,
-		Ec2Instance: ec2info.InstanceID,
-		Ec2Region:   ec2info.Region,
-		client:      client,
-		groupnames:  map[string]string{},
-		streamnames: map[string]string{},
+		Route:         route,
+		OsHost:        hostname,
+		Ec2Instance:   ec2info.InstanceID,
+		Ec2Region:     ec2info.Region,
+		client:        client,
+		groupnames:    map[string]string{},
+		streamnames:   map[string]string{},
+		retentiondays: map[string]int64{},
 	}
 	adapter.batcher = NewCloudwatchBatcher(&adapter)
 	return &adapter, nil
@@ -94,6 +97,17 @@ func (a *CloudwatchAdapter) Stream(logstream chan *router.Message) {
 			streamName = a.renderEnvValue(`LOGSPOUT_STREAM`, &context, context.Name)
 			a.groupnames[m.Container.ID] = groupName   // cache the group name
 			a.streamnames[m.Container.ID] = streamName // and the stream name
+
+			retentionDays := a.renderEnvValue(`LOGSPOUT_CLOUDWATCH_RETENTION_DAYS`, &context, "")
+
+			if (retentionDays != "") {
+				retentionDaysInt, err := strconv.ParseInt(retentionDays, 10, 64)
+				if err == nil {
+					a.retentiondays[groupName] = retentionDaysInt
+				} else {
+					log.Printf("cloudwatch: error parsing retention days of '%s' to a int64: %s", retentionDays, err)
+				}
+			}
 		}
 		a.batcher.Input <- CloudwatchMessage{
 			Message:   m.Data,
