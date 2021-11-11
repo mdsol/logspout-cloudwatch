@@ -15,10 +15,11 @@ import (
 // CloudwatchUploader receieves CloudwatchBatches on its input channel,
 // and sends them on to the AWS Cloudwatch Logs endpoint.
 type CloudwatchUploader struct {
-	Input    chan CloudwatchBatch
-	svc      *cloudwatchlogs.CloudWatchLogs
-	tokens   map[string]string
-	debugSet bool
+	Input         chan CloudwatchBatch
+	adapter       *CloudwatchAdapter
+	svc           *cloudwatchlogs.CloudWatchLogs
+	tokens        map[string]string
+	debugSet      bool
 }
 
 func NewCloudwatchUploader(adapter *CloudwatchAdapter) *CloudwatchUploader {
@@ -38,9 +39,10 @@ func NewCloudwatchUploader(adapter *CloudwatchAdapter) *CloudwatchUploader {
 			region)
 	}
 	uploader := CloudwatchUploader{
-		Input:    make(chan CloudwatchBatch),
-		tokens:   map[string]string{},
+		Input: make(chan CloudwatchBatch),
+		tokens: map[string]string{},
 		debugSet: debugSet,
+		adapter: adapter,
 		svc: cloudwatchlogs.New(session.New(),
 			&aws.Config{Region: aws.String(region)}),
 	}
@@ -123,6 +125,13 @@ func (u *CloudwatchUploader) getSequenceToken(msg CloudwatchMessage) (*string,
 		if err != nil {
 			return nil, err
 		}
+
+		if retentionDays, retentionDaysConfigured := u.adapter.retentiondays[group]; retentionDaysConfigured {
+			err = u.createGroupRetentionPolicy(group, retentionDays)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 	params := &cloudwatchlogs.DescribeLogStreamsInput{
 		LogGroupName:        aws.String(group),
@@ -169,6 +178,18 @@ func (u *CloudwatchUploader) createGroup(group string) error {
 		LogGroupName: aws.String(group),
 	}
 	if _, err := u.svc.CreateLogGroup(params); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *CloudwatchUploader) createGroupRetentionPolicy(group string, retentionInDays int64) error {
+	u.log("Creating group retention policy for %s, days: %d...", group, retentionInDays)
+	params := &cloudwatchlogs.PutRetentionPolicyInput{
+		LogGroupName: aws.String(group),
+		RetentionInDays: aws.Int64(retentionInDays),
+	}
+	if _, err := u.svc.PutRetentionPolicy(params); err != nil {
 		return err
 	}
 	return nil
